@@ -86,33 +86,98 @@ The `match internal external 1 external 2` clause is required. The cores inject 
 
 **AS 65200 · `10.0.0.0/16` · OSPF process 1, area 0**
 
-Leaf-spine fabric with routed access. Every leaf has four uplinks (two to each spine), producing 4-way ECMP. All leaf-spine links are routed `/30` point-to-point, so no STP runs in the fabric.
+Collapsed core. Two Layer 3 switches hold every SVI and act as the gateway
+for all server VLANs. Two access switches connect to both cores over LACP
+Port-Channels and operate purely at Layer 2.
 
-### Server VLANs
+> **Naming note.** The devices are named `DC-Spine-*` and `DC-Leaf-*` for
+> historical reasons. The implemented design is a collapsed core, not a
+> routed leaf-spine fabric.
 
-| VLAN | Subnet | Gateway |
-|---|---|---|
-| 10 | `10.0.10.0/24` | `.1` |
-| 20 | `10.0.20.0/24` | `.1` |
-| 30 | `10.0.30.0/24` | `.1` |
+### VLANs
 
-DHCP is served locally by the switch holding each SVI (pool starts at `.50`).
+| VLAN | Subnet | Gateway (HSRP VIP) | DC-Spine-1 | DC-Spine-2 |
+|---|---|---|---|---|
+| 10 | `10.0.10.0/24` | `10.0.10.1` | `.2` | `.3` |
+| 20 | `10.0.20.0/24` | `10.0.20.1` | `.2` | `.3` |
+| 30 | `10.0.30.0/24` | `10.0.30.1` | `.2` | `.3` |
+| 40 | `10.0.40.0/24` | `10.0.40.1` | `.2` | `.3` |
 
-### Fabric Links — `10.0.253.0/24`
+### Port-Channels (LACP)
 
-| Spine | Port | Address | Leaf | Port | Address |
-|---|---|---|---|---|---|
-| DC-Spine-1 | e0/2 | `10.0.253.1` | DC-Leaf-1 | e0/0 | `10.0.253.2` |
-| DC-Spine-1 | e1/0 | `10.0.253.5` | DC-Leaf-1 | e0/1 | `10.0.253.6` |
-| DC-Spine-1 | e1/1 | `10.0.253.9` | DC-Leaf-2 | e1/0 | `10.0.253.10` |
-| DC-Spine-1 | e1/2 | `10.0.253.13` | DC-Leaf-2 | e1/1 | `10.0.253.14` |
-| DC-Spine-2 | e1/1 | `10.0.253.17` | DC-Leaf-1 | e1/0 | `10.0.253.18` |
-| DC-Spine-2 | e1/2 | `10.0.253.21` | DC-Leaf-1 | e1/1 | `10.0.253.22` |
-| DC-Spine-2 | e0/2 | `10.0.253.25` | DC-Leaf-2 | e0/0 | `10.0.253.26` |
-| DC-Spine-2 | e1/0 | `10.0.253.29` | DC-Leaf-2 | e0/1 | `10.0.253.30` |
+| Po | Core | Ports | Access Switch | Ports |
+|---|---|---|---|---|
+| `Po1` | DC-Spine-1 | e0/2, e1/0 | DC-Leaf-1 | e0/0, e0/1 |
+| `Po2` | DC-Spine-1 | e1/1, e1/2 | DC-Leaf-2 | e1/0, e1/1 |
+| `Po1` | DC-Spine-2 | e1/1, e1/2 | DC-Leaf-1 | e1/0, e1/1 |
+| `Po2` | DC-Spine-2 | e0/2, e1/0 | DC-Leaf-2 | e0/0, e0/1 |
 
-Every fabric interface carries `no switchport` and `ip ospf network point-to-point`. The latter suppresses DR/BDR election and speeds convergence.
+All bundles are 802.1Q trunks carrying VLANs 10, 20, 30 and 40.
 
+### Routed WAN Uplinks
+
+| Link | Subnet | DC-WAN-RTR | Core |
+|---|---|---|---|
+| WAN-RTR to DC-Spine-1 | `10.0.254.0/30` | `.1` (e0/1) | `.2` (e0/0) |
+| WAN-RTR to DC-Spine-2 | `10.0.254.4/30` | `.5` (e0/2) | `.6` (e0/0) |
+
+These are the only routed interfaces inside the DC. Everything below the
+cores is Layer 2.
+
+### Loopbacks
+
+| Device | Address |
+|---|---|
+| DC-Spine-1 | `10.0.255.1` |
+| DC-Spine-2 | `10.0.255.2` |
+| DC-WAN-RTR | `10.0.255.8` |
+
+The access switches also carry loopbacks (`10.0.255.11`, `10.0.255.12`).
+These are vestigial and serve no function in a Layer 2 device.
+
+### First-Hop Redundancy and Layer 2
+
+**HSRP** — DC-Spine-1 is Active on all four VLANs (priority 110, preempt).
+DC-Spine-2 is Standby.
+
+**Spanning tree** — Rapid-PVST. Each access switch is dual-homed, so STP
+blocks one uplink per VLAN.
+
+**No core peer-link.** Unlike HQ, the two cores are not directly connected.
+They reach each other through the access switches and through DC-WAN-RTR.
+This works, but a direct trunk between them would be the conventional build.
+
+### Routing
+
+OSPF process 1, area 0, between the two cores and DC-WAN-RTR over the
+`10.0.254.x` links. The cores redistribute their connected VLAN subnets
+into OSPF.
+
+DC-WAN-RTR injects a default route into the site:
+
+```
+router ospf 1
+ default-information originate
+```
+
+And summarises the entire site outward, advertising only the `/16` supernet:
+
+```
+router bgp 65200
+ address-family ipv4
+  network 10.0.0.0 mask 255.255.0.0
+  aggregate-address 10.0.0.0 255.255.0.0 summary-only
+  redistribute ospf 1
+```
+
+A discard route anchors the aggregate and catches unrouted `10.0.x.x`:
+
+```
+ip route 10.0.0.0 255.255.0.0 Null0 250
+```
+
+New subnets added inside the DC are covered automatically by the `/16` and
+require no changes at any other site.
 ### WAN Uplinks
 
 | Link | Subnet | DC-WAN-RTR | Spine |
