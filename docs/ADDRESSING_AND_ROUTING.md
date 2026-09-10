@@ -11,7 +11,7 @@ Three customer sites connected over a simulated MPLS L3VPN provider core, plus a
 | Block | Owner | Purpose |
 |---|---|---|
 | `172.16.0.0/16` | HQ Site | Campus VLANs and internal links |
-| `10.0.0.0/16` | DC Site | Server VLANs, fabric links, loopbacks |
+| `10.0.0.0/16` | DC Site | Server VLANs, WAN uplinks, loopbacks |
 | `192.168.0.0/16` | Branch 1 | User and management VLANs |
 | `80.80.80.0/24` | Provider | HQ PE-CE link + provider core links |
 | `90.90.90.0/30` | Provider | DC PE-CE link |
