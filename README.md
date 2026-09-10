@@ -39,7 +39,7 @@ Each site is deliberately built on a different design pattern, chosen to match i
 |---|---|
 | [`docs/ADDRESSING_AND_ROUTING.md`](docs/ADDRESSING_AND_ROUTING.md) | Full IP plan, ASNs, routing protocols, VRF and VPNv4 |
 | [`docs/SITE_DESIGNS.md`](docs/SITE_DESIGNS.md) | Why each site is built the way it is, and the trade-offs |
-| [`docs/LAB_NOTES.md`](docs/LAB_NOTES.md) | Problems encountered, root causes, and what they taught |
+| [`docs/LAB_NOTES.md`](docs/TROUBLESHOOTING.md) | Problems encountered, root causes, and what they taught |
 
 ---
 
