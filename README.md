@@ -69,16 +69,15 @@ Each site is deliberately built on a different design pattern, chosen to match i
 
 ## Design Comparison
 
-| | HQ | DC | Branch |
+| | HQ | DC | Branch 1 |
 |---|---|---|---|
-| Inter-layer links | Port-Channel (LACP) | Routed `/30` | Single trunk |
-| Traffic distribution | LACP, Layer 2 | ECMP in OSPF, Layer 3 | None |
-| Loop prevention | MST | No loop exists | No loop exists |
-| Gateway | HSRP virtual IP | Local SVI per leaf | Router sub-interface |
-| Redundancy | HSRP + Po + MST | 4-way ECMP | None |
-
-The same pattern applied everywhere would be wrong in two of the three places. Building the branch like HQ means four switches and an FHRP for twenty users. Building HQ like the branch puts every flow through one router on one cable. Building the DC like HQ leaves half the links blocked by STP, in the one place where east-west bandwidth matters most.
-
+| Pattern | Collapsed Core | Collapsed Core | Router-on-a-Stick |
+| L3 devices | Two cores | Two cores | One router |
+| Access uplinks | LACP Port-Channel | LACP Port-Channel | Single trunk |
+| Loop prevention | MST | Rapid-PVST | None needed |
+| Gateway | HSRP VIP | HSRP VIP | Router sub-interface |
+| Core peer-link | Yes (`Po1`) | **No** | — |
+| Redundancy | HSRP + Po + STP | HSRP + Po + STP | None |
 ---
 
 ## Built With
