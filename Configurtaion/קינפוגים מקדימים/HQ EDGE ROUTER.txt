@@ -1,0 +1,27 @@
+HQ-Edge-Router#
+HQ-Edge-Router#
+HQ-Edge-Router#show ip bgp summary
+BGP router identifier 1.1.1.1, local AS number 65100
+BGP table version is 13, main routing table version 13
+10 network entries using 1400 bytes of memory
+11 path entries using 880 bytes of memory
+7/6 BGP path/bestpath attribute entries using 1008 bytes of memory
+3 BGP AS-PATH entries using 72 bytes of memory
+0 BGP route-map cache entries using 0 bytes of memory
+0 BGP filter-list cache entries using 0 bytes of memory
+BGP using 3360 total bytes of memory
+BGP activity 10/0 prefixes, 11/0 paths, scan interval 60 secs
+
+Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+10.255.255.2    4        65200      40      46       13    0    0 00:32:14        1
+80.80.80.1      4        65000      40      43       13    0    0 00:33:36        4
+HQ-Edge-Router#show ip route 10.0.100.0
+Routing entry for 10.0.0.0/16
+  Known via "static", distance 1, metric 0 (connected)
+  Routing Descriptor Blocks:
+  * directly connected, via Tunnel0
+      Route metric is 0, traffic share count is 1
+HQ-Edge-Router#
+HQ-Edge-Router#
+
+

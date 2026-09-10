@@ -1,0 +1,50 @@
+HQ-Core-SW2#show standby brief
+                     P indicates configured to preempt.
+                     |
+Interface   Grp  Pri P State   Active          Standby         Virtual IP
+Vl10        10   100 P Standby 172.16.10.2     local           172.16.10.1
+Vl20        20   100 P Standby 172.16.20.2     local           172.16.20.1
+Vl30        30   100 P Standby 172.16.30.2     local           172.16.30.1
+Vl40        40   100 P Standby 172.16.40.2     local           172.16.40.1
+HQ-Core-SW2#show spanning-tree vlan 10 | include root
+HQ-Core-SW2#
+HQ-Core-SW2#
+HQ-Core-SW2#
+HQ-Core-SW2#
+HQ-Core-SW2#
+HQ-Core-SW2#
+HQ-Core-SW2#
+HQ-Core-SW2#
+*Aug 24 11:36:11.658: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/2 (not full duplex), with Switch Ethernet0/2 (full duplex).
+HQ-Core-SW2#
+*Aug 24 11:36:25.528: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/3 (not full duplex), with Switch Ethernet0/3 (full duplex).
+HQ-Core-SW2#
+*Aug 24 11:36:44.437: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not full duplex), with HQ-Access-SW1 Ethernet0/0 (full duplex).
+HQ-Core-SW2#
+*Aug 24 11:36:46.746: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not full duplex), with HQ-Access-SW1 Ethernet0/1 (full duplex).
+HQ-Core-SW2#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        H - Hot-standby (LACP only)
+        R - Layer3      S - Layer2
+        U - in use      N - not in use, no aggregation
+        f - failed to allocate aggregator
+
+        M - not in use, minimum links not met
+        m - not in use, port not aggregated due to minimum links not met
+        u - unsuitable for bundling
+        w - waiting to be aggregated
+        d - default port
+
+        A - formed by Auto LAG
+
+
+Number of channel-groups in use: 3
+Number of aggregators:           3
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+1      Po1(SU)         LACP      Et0/1(P)    Et1/2(P)
+21     Po21(SU)        LACP      Et1/0(P)    Et1/1(P)
+22     Po22(SU)        LACP      Et0/2(P)    Et0/3(P)
+

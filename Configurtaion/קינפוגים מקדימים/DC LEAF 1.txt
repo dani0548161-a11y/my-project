@@ -1,0 +1,256 @@
+DC-Leaf-1>ena
+DC-Leaf-1#show ip ospf neighbor
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+10.0.255.2        0   FULL/  -        00:00:33    10.0.253.21     Ethernet1/1
+10.0.255.2        0   FULL/  -        00:00:35    10.0.253.17     Ethernet1/0
+10.0.255.1        0   FULL/  -        00:00:29    10.0.253.5      Ethernet0/1
+10.0.255.1        0   FULL/  -        00:00:36    10.0.253.1      Ethernet0/0
+DC-Leaf-1#
+DC-Leaf-1#
+DC-Leaf-1#
+DC-Leaf-1#
+DC-Leaf-1#show ip ospf neighbor
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+10.0.255.2        0   FULL/  -        00:00:39    10.0.253.21     Ethernet1/1
+10.0.255.2        0   FULL/  -        00:00:32    10.0.253.17     Ethernet1/0
+10.0.255.1        0   FULL/  -        00:00:39    10.0.253.5      Ethernet0/1
+10.0.255.1        0   FULL/  -        00:00:32    10.0.253.1      Ethernet0/0
+DC-Leaf-1#show ip route 10.0.100.0
+Routing entry for 10.0.100.0/24
+  Known via "connected", distance 0, metric 0 (connected, via interface)
+  Routing Descriptor Blocks:
+  * directly connected, via Vlan100
+      Route metric is 0, traffic share count is 1
+DC-Leaf-1#
+DC-Leaf-1#
+DC-Leaf-1#
+DC-Leaf-1#
+*Aug 24 11:14:25.910: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:14:26.531: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:14:32.917: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:14:40.250: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).show ip ospf neighbor
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+10.0.255.2        0   FULL/  -        00:00:32    10.0.253.21     Ethernet1/1
+10.0.255.2        0   FULL/  -        00:00:35    10.0.253.17     Ethernet1/0
+10.0.255.1        0   FULL/  -        00:00:31    10.0.253.5      Ethernet0/1
+10.0.255.1        0   FULL/  -        00:00:35    10.0.253.1      Ethernet0/0
+DC-Leaf-1#show ip route 10.0.100.0
+Routing entry for 10.0.100.0/24
+  Known via "connected", distance 0, metric 0 (connected, via interface)
+  Routing Descriptor Blocks:
+  * directly connected, via Vlan100
+      Route metric is 0, traffic share count is 1
+DC-Leaf-1#
+DC-Leaf-1#
+*Aug 24 11:15:20.895: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:15:22.302: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:15:25.774: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:15:37.854: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:16:15.727: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:16:18.601: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:16:21.729: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:16:26.494: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:17:05.234: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:17:13.460: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:17:17.280: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:17:24.431: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:17:54.978: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:18:04.519: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:18:08.138: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:18:19.792: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:18:43.498: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:18:53.224: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:19:06.598: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:19:09.145: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:19:34.053: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:19:52.173: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:19:59.001: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:20:02.497: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:20:28.556: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:20:44.050: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:20:54.663: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:20:58.279: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:21:26.552: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:21:37.529: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:21:50.546: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:21:56.416: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:22:18.955: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:22:35.973: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:22:45.170: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:22:49.774: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:23:10.186: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:23:35.804: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:23:36.602: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:23:41.888: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:24:07.680: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:24:28.819: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:24:29.187: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:24:34.190: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DC-Leaf-1 con0 is now available
+
+
+
+
+
+Press RETURN to get started.
+
+
+
+
+
+
+
+*Aug 24 11:24:56.474: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:25:24.235: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+*Aug 24 11:25:24.981: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:25:26.331: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:25:49.682: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:26:14.366: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+*Aug 24 11:26:16.941: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:26:22.850: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:26:45.986: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:27:07.641: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:27:11.714: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+*Aug 24 11:27:21.903: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:27:45.999: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:27:59.858: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:28:05.050: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+*Aug 24 11:28:11.288: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:28:40.652: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:28:55.744: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:28:57.654: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+*Aug 24 11:29:02.636: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:29:32.172: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:29:52.044: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+*Aug 24 11:29:53.218: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:29:59.184: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:30:23.757: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:30:43.203: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:30:50.786: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+*Aug 24 11:30:55.189: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:31:17.495: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:31:37.285: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:31:45.024: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+*Aug 24 11:31:47.900: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:32:17.424: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).
+*Aug 24 11:32:26.063: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+*Aug 24 11:32:36.741: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:32:36.812: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1>
+DC-Leaf-1>
+DC-Leaf-1>
+DC-Leaf-1>
+DC-Leaf-1>
+DC-Leaf-1>enq
+Translating "enq"...domain server (255.255.255.255) % Name lookup aborted
+
+DC-Leaf-1>
+*Aug 24 11:33:10.128: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/1 (not half duplex), with DC-Spine-1 Ethernet1/0 (half duplex).ena
+DC-Leaf-1>ena
+DC-Leaf-1#
+*Aug 24 11:33:24.771: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/0 (not half duplex), with DC-Spine-1 Ethernet0/2 (half duplex).
+DC-Leaf-1#
+*Aug 24 11:33:29.491: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/0 (not half duplex), with DC-Spine-2 Ethernet1/1 (half duplex).
+*Aug 24 11:33:30.192: %CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet1/1 (not half duplex), with DC-Spine-2 Ethernet1/2 (half duplex).
+DC-Leaf-1#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        H - Hot-standby (LACP only)
+        R - Layer3      S - Layer2
+        U - in use      N - not in use, no aggregation
+        f - failed to allocate aggregator
+
+        M - not in use, minimum links not met
+        m - not in use, port not aggregated due to minimum links not met
+        u - unsuitable for bundling
+        w - waiting to be aggregated
+        d - default port
+
+        A - formed by Auto LAG
+
+
+Number of channel-groups in use: 1
+Number of aggregators:           1
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+14     Po14(SD)        LACP      Et0/2(D)    Et0/3(D)
+
