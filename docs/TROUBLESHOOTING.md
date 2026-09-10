@@ -1,287 +1,405 @@
-# Troubleshooting
+# Troubleshooting Log
 
-Problems encountered while building this lab, what actually caused them, and how each was identified.
+Real faults encountered while building this lab, and how each was actually found.
 
-Every one of them looked like something it was not. That is the recurring theme, and the reason this file exists.
+Every entry follows the same shape: what the symptom looked like, what it appeared to be, what it actually was, and the command that settled it.
 
----
+The recurring lesson is stated once here because it applied to almost every incident below:
 
-## Contents
-
-1. [A static route that installed cleanly and dropped everything](#1-a-static-route-that-installed-cleanly-and-dropped-everything)
-2. [`network` in BGP does not invent networks](#2-network-in-bgp-does-not-invent-networks)
-3. [`redistribute ospf` skips external routes by default](#3-redistribute-ospf-skips-external-routes-by-default)
-4. [A session being up proves nothing about what crosses it](#4-a-session-being-up-proves-nothing-about-what-crosses-it)
-5. [A backup path hides a dead one](#5-a-backup-path-hides-a-dead-one)
-6. [Layer 1 before Layer 3](#6-layer-1-before-layer-3)
-7. [Intermittent usually means resources](#7-intermittent-usually-means-resources)
-8. [Environment notes](#8-environment-notes)
-9. [Open items](#9-open-items)
+> **The layer that appeared broken was never the layer that was broken.**
 
 ---
 
-## 1. A static route that installed cleanly and dropped everything
+## Method
 
-**Symptom** — no connectivity from HQ to the DC server subnets. Configuration reviewed several times and found correct.
+Before any of the specific cases, the approach that consistently worked:
 
-**What the routing table showed:**
+1. **Verify the layer below before debugging the layer above.** An OSPF adjacency problem is usually not an OSPF problem.
+2. **Read counters, not configuration.** Configuration says what *should* happen. `show interfaces` says what *is* happening.
+3. **Prove reachability in the correct routing table.** A ping that fails from the wrong table proves nothing.
+4. **Change one thing.** Two changes and a working network teaches nothing about which one mattered.
+
+---
+
+## Case 1 — EtherChannel Up, VLAN 40 Missing
+
+**Symptom.** After the HQ Port-Channels came up, hosts in VLANs 10, 20 and 30 worked. VLAN 40 had no connectivity anywhere.
+
+**What it looked like.** An EtherChannel problem — the bundle had just been built, so the bundle was suspect.
+
+**What it was.** `switchport trunk allowed vlan` had been written with 10,20,30 and VLAN 40 was added to the design afterwards. The trunk was silently dropping it.
 
 ```
-S    10.0.100.0/24 [1/0] via 10.0.1.2
-S    10.0.200.0/24 [1/0] via 10.0.1.2
+show interfaces trunk
 ```
 
-Both routes present, both marked valid.
+The **Vlans allowed on trunk** column is the answer. A trunk in `trunking` status with the wrong allowed list looks completely healthy in `show etherchannel summary`.
 
-**Cause** — the next-hop `10.0.1.2` did not exist anywhere in the network. But a catch-all discard route did:
+**Fix.**
+
+```
+interface Port-channel11
+ switchport trunk allowed vlan add 40
+```
+
+`add` — not a bare `switchport trunk allowed vlan 40`, which *replaces* the list and removes the other three.
+
+**Lesson.** `show etherchannel summary` proves the bundle formed. It says nothing about what the bundle carries.
+
+---
+
+## Case 2 — `%CDP-4-DUPLEX_MISMATCH` That Was Not a Duplex Mismatch
+
+**Symptom.** Continuous console messages on the HQ and DC switches:
+
+```
+%CDP-4-DUPLEX_MISMATCH: duplex mismatch discovered on Ethernet0/2
+```
+
+**What it looked like.** A speed/duplex problem serious enough to explain intermittent behaviour elsewhere.
+
+**What it was.** An IOL artefact. `show interfaces status` showed `a-full` on both ends of every link. Virtual interfaces in EVE do not apply `duplex full` consistently, and CDP reports a mismatch that does not exist at the data plane.
+
+**Fix.** Confirm both ends first, then silence it:
+
+```
+show interfaces status
+!
+no cdp log mismatch duplex
+```
+
+**What is worth checking anyway.** Duplex does have a real consequence for STP:
+
+```
+show spanning-tree interface Ethernet0/2 detail
+```
+
+The **Type** column derives from duplex — `P2p` from full, `Shr` from half. On `Shr`, MST and RSTP fall back to legacy 802.1D timers and convergence stretches past 30 seconds. If it ever shows `Shr`:
+
+```
+interface Ethernet0/2
+ spanning-tree link-type point-to-point
+```
+
+**Lesson.** A loud log message is not the same as an impactful one. Verify the claim before acting on it — but check what the underlying property *actually* affects.
+
+---
+
+## Case 3 — Static Routes That Black-Holed Traffic
+
+**Symptom.** Traffic to a DC subnet was dropped silently. No ICMP unreachable, no log, and `show ip route` showed a valid route toward it.
+
+**What it looked like.** A routing protocol failure — the prefix was present, so forwarding should have worked.
+
+**What it was.** Two leftover static routes:
+
+```
+ip route 10.0.100.0 255.255.255.0 10.0.1.2
+```
+
+The next-hop `10.0.1.2` did not exist anywhere in the topology. Rather than rejecting the static, IOS resolved it **recursively** against the widest matching route in the table:
 
 ```
 ip route 10.0.0.0 255.255.0.0 Null0 250
 ```
 
-IOS resolved `10.0.1.2` recursively through that `/16`, found `Null0`, and installed both statics as valid. They looked perfectly healthy and black-holed every packet in silence.
+That discard route existed to anchor the BGP aggregate. The static resolved through it, IOS considered the next-hop reachable, installed the static as valid — and every packet matching it went to `Null0`.
 
-Worse, they carried AD 1, so they beat the OSPF routes that later arrived with the correct next-hop.
-
-**Fix**
+**How it was found.**
 
 ```
-no ip route 10.0.100.0 255.255.255.0 10.0.1.2
-no ip route 10.0.200.0 255.255.255.0 10.0.1.2
+show ip route 10.0.100.0
 ```
 
-**Lesson** — an installed route is not a working route. Follow where the next-hop actually resolves, and remember that a leftover static outranks a correct dynamic route.
+The output names the recursive next-hop and the interface the route finally resolves to. Seeing `Null0` at the end of a chain that started with a real IP address is the whole diagnosis.
+
+**Fix.** Remove both statics. The prefix was already learned dynamically.
+
+**Lesson.** A discard route used to anchor an aggregate will happily resolve any broken static pointed near it. A route being *present and valid* is not evidence that it forwards.
 
 ---
 
-## 2. `network` in BGP does not invent networks
+## Case 4 — `redistribute ospf` That Skipped Half the Routes
 
-**Symptom** — the branch site advertised nothing. BGP session up, neighbour correct, VRF and route-targets on the PE verified.
+**Symptom.** `HQ-Edge-Router` was configured to redistribute OSPF into BGP. Some HQ prefixes reached the DC; the VLAN subnets did not. No error, no warning.
 
-**What proved it:**
+**What it looked like.** A BGP advertisement or filtering problem — a route-map dropping prefixes.
+
+**What it was.** The HQ core switches inject their VLAN subnets into OSPF with `redistribute connected`, so those prefixes arrive at the edge router as **O E2** (external type 2), not as internal OSPF routes.
+
+The default behaviour of `redistribute ospf <pid>` is `match internal`. External routes are skipped — silently, with no indication in the running configuration that anything is being filtered.
+
+**How it was found.** Compare what the router *knows* against what it *advertises*:
 
 ```
-BR1-Router#show ip bgp neighbors 70.70.70.1 advertised-routes
+show ip route ospf
+show ip bgp neighbors 80.80.80.1 advertised-routes
+```
+
+Every prefix missing from the second output carried `O E2` in the first. That correlation is the diagnosis.
+
+**Fix.**
+
+```
+router bgp 65100
+ address-family ipv4
+  redistribute ospf 100 match internal external 1 external 2
+```
+
+**Lesson.** An implicit default is harder to find than a wrong value, because nothing in `show running-config` shows it. When redistribution appears partial, check what route *type* the missing prefixes are.
+
+---
+
+## Case 5 — Branch Advertising Nothing
+
+**Symptom.** Branch 1 could reach HQ and the DC. Neither could reach Branch 1.
+
+**What it looked like.** An asymmetric routing or return-path problem in the provider core.
+
+**What it was.** `BR1-Router` had a BGP session that was **Established**, and advertised zero prefixes.
+
+```
+show ip bgp neighbors 70.70.70.1 advertised-routes
+```
+```
 Total number of prefixes 0
 ```
 
-And the local table was equally empty of the branch prefixes.
+The session was healthy. There were simply no `network` statements telling it what to advertise.
 
-**Cause** — the `network` statements were missing from `address-family ipv4`.
-
-`network X mask Y` does not create a prefix. It takes a route that **already exists in the local routing table** and injects it into BGP. No matching route, no advertisement — and no error message either.
-
-**Fix**
+**Fix.**
 
 ```
 router bgp 65300
- address-family ipv4
-  network 192.168.10.0 mask 255.255.255.0
-  network 192.168.30.0 mask 255.255.255.0
+ network 192.168.10.0 mask 255.255.255.0
+ network 192.168.30.0 mask 255.255.255.0
 ```
 
-**Quick check** — the prefix should appear in `show ip bgp` with next-hop `0.0.0.0` and weight `32768`. If it does not, either the statement is missing or the route is absent from the RIB.
+The mask must match the routing table exactly. `network 192.168.10.0` without `mask` assumes classful `/24` here by luck — writing it explicitly removes the guesswork.
+
+**Lesson.** `Established` means the TCP session and the BGP capability exchange succeeded. It says nothing about content. One-way reachability is almost always an advertisement problem on the unreachable side, not a forwarding problem in the middle.
 
 ---
 
-## 3. `redistribute ospf` skips external routes by default
+## Case 6 — VPNv4 Peering That Had Never Worked
 
-**Symptom** — HQ LAN subnets sat in the edge router's routing table but never reached BGP.
+**Symptom.** No customer routes crossing between PE1 and PE-2. Investigated only after end-to-end traffic failed — the sessions had been broken since they were first configured.
 
-**What the table showed:**
+**What it looked like.** MPLS label distribution, or a Route Target mismatch.
 
-```
-O E2  172.16.10.0/24 [110/20] via 172.16.1.6, Ethernet0/1
-O E2  172.16.20.0/24 [110/20] via 172.16.1.6, Ethernet0/1
-O E2  172.16.30.0/24 [110/20] via 172.16.1.6, Ethernet0/1
-O E2  172.16.40.0/24 [110/20] via 172.16.1.6, Ethernet0/1
-```
-
-Present, valid, and completely absent from `show ip bgp`.
-
-**Cause** — a hidden default. This:
+**What it was.** Each PE carried **two** neighbour statements:
 
 ```
-redistribute ospf 100
+show ip bgp vpnv4 all summary
+```
+```
+Neighbor        V   AS  State/PfxRcd
+10.0.255.2      4 65000  Idle
+192.51.100.2    4 65000  Idle
 ```
 
-means this:
+`10.0.255.2` is an **OSPF router-ID**, not an address assigned to any interface. It is not routable, so that session sat permanently in `Idle`. It had been added early on by copying a router-ID out of `show ip ospf neighbor` and mistaking it for a loopback.
+
+The real loopback pair — `192.51.100.1` / `192.51.100.2` — was also `Idle`, for a separate reason covered in Case 8.
+
+**Fix.** Delete the dead pair so the output shows only sessions that are supposed to work:
 
 ```
-redistribute ospf 100 match internal
+router bgp 65000
+ no neighbor 10.0.255.2 remote-as 65000
 ```
 
-`match internal` covers `O` and `O IA` only. External routes — `O E1`, `O E2` — are skipped silently.
-
-The cores inject their VLAN subnets with `redistribute connected`, so they arrive as **E2**. BGP ignored all four.
-
-**Fix**
+**Also verified while there.** VPNv4 will not carry Route Targets without:
 
 ```
-redistribute ospf 100 match internal external 1 external 2
+address-family vpnv4
+ neighbor 192.51.100.2 send-community both
 ```
 
-**Lesson** — the `E2` tag was visible the whole time. Reading the route code, not just the prefix, would have found this in minutes.
+RTs *are* extended communities. Without `send-community both` they are stripped, the far PE has nothing to match against, and no route is imported into the VRF — while the session shows `Established` and a prefix count of zero.
+
+**Lesson.** An OSPF router-ID looks exactly like an IP address and is frequently not one. Confirm with `show ip interface brief` before using anything as a peering address.
 
 ---
 
-## 4. A session being up proves nothing about what crosses it
+## Case 7 — PE1 Could Not Ping Its Own Neighbour
 
-Two variations of the same mistake appeared in this lab.
-
-### BGP
+**Symptom.** From PE1:
 
 ```
-Neighbor        V      AS  MsgRcvd MsgSent  Up/Down    State/PfxRcd
-80.80.80.2      4   65100       45      50  00:36:30              2
+ping 80.80.80.2
+```
+```
+.....
+Success rate is 0 percent (0/5)
 ```
 
-`Up` means the TCP session established. Nothing more. The `State/PfxRcd` column is the one that matters — two prefixes where six were expected meant the LAN subnets were missing, which is how issue #3 surfaced.
+`80.80.80.2` is `HQ-Edge-Router`, directly connected on `Ethernet0/1`.
 
-An established session showing `0` is an open, empty pipe.
+**What it looked like.** A dead link, or an interface in the wrong state.
 
-### GRE tunnel
+**What it was.** `Ethernet0/1` is in `Enterprise_VRF`. The ping was issued from the **global** table, which has no route to `80.80.80.0/30` at all — because that subnet exists only inside the VRF.
 
-A GRE interface reports `up/up` whenever two conditions hold: the source interface is up, and a route to the destination exists. It does **not** verify that anyone is listening.
-
-The tunnel here showed `up/up` while the far site was entirely unreachable.
-
-**What actually proves a tunnel works:**
-
-```
-show crypto ipsec sa | include encaps|decaps
-```
-
-```
-#pkts encaps: 136, #pkts encrypt: 136
-#pkts decaps: 138, #pkts decrypt: 138
-```
-
-Both counters must move. Encaps climbing while decaps stays at zero means traffic leaves and nothing comes back.
-
----
-
-## 5. A backup path hides a dead one
-
-**Symptom** — the newly added branch could not reach either other site, while HQ and the DC communicated normally.
-
-**What proved it:**
-
-```
-PE1:   10.0.255.3     65000   0  0   never   Idle
-PE-2:  10.0.255.1     65000   0  0   never   Idle
-```
-
-`never` in the Up/Down column. The VPNv4 peering between the two PE routers had not merely failed — it had **never come up at all**. The MPLS L3VPN had never carried a single route between sites.
-
-Nobody noticed, because HQ and the DC talk over a GRE/IPsec tunnel that bypasses the MPLS core entirely.
-
-Branch 1 has no tunnel and depends on the L3VPN alone. It exposed the problem within minutes of being connected.
-
-**Lesson** — a site with no alternate path is an excellent diagnostic instrument. Redundancy is valuable, and it also conceals the fact that one of your paths died months ago. Test each path in isolation, not just end-to-end reachability.
-
----
-
-## 6. Layer 1 before Layer 3
-
-The longest chase in the project.
-
-**Symptom** — OSPF would not form between the P router and PE1. Configuration verified repeatedly: timers matched, area matched, network type matched, no ACLs, no authentication mismatch. The P router showed the neighbour stuck in `INIT`; PE1's neighbour table was empty.
-
-**What settled it** — the interface counters, sampled thirty seconds apart:
-
-```
-P-Router:   packets output   1542 -> 1548     climbing
-PE1:        packets input      26 ->   26     frozen
-```
-
-Twenty-six packets total, ever. Nothing was arriving at PE1 — not OSPF, not CDP, not ARP, not ping. The virtual link in EVE was dead in one direction.
-
-**Fix** — delete the link in EVE and redraw it. Thirty seconds.
-
-**Lesson** — when the configuration checks out repeatedly, stop reading configuration and ask the physical question: *are the packets arriving at all?* An interface counter answers in seconds what protocol debugging could not answer in hours.
-
-`show cdp neighbors` is the fastest first check — it runs at Layer 2 and does not depend on IP at all.
-
----
-
-## 7. Intermittent usually means resources
-
-**Symptom** — OSPF adjacencies flapping, BGP sessions dropping to `Active`, pings alternating between success and timeout.
-
-```
-%OSPF-5-ADJCHG: Process 100, Nbr 172.16.255.3 from FULL to DOWN, Dead timer expired
-%OSPF-5-ADJCHG: Process 100, Nbr 172.16.255.2 from FULL to DOWN, Dead timer expired
-```
-
-**The clue was in the latency** — traceroute times of 800 ms on a local virtual lab, where single-digit milliseconds are normal.
-
-**Cause** — around twenty nodes on a constrained host starves CPU. Hello packets arrive late, dead timers expire, adjacencies reset, routes disappear and return.
-
-The knock-on effect matters: when OSPF drops, the routes it carried vanish from the RIB, so `redistribute ospf` has nothing to convert, and the prefixes disappear from BGP too. A single resource problem presents as a routing failure three layers up.
-
-**Mitigations, in order:**
-
-1. Power down nodes outside the path under test
-2. Relax OSPF timers to tolerate the jitter — matching values on **both** ends:
-
-```
-interface <X>
- ip ospf dead-interval 120
-```
-
-3. Check the host itself with `uptime` and `free -h`
-
-**Lesson** — in a lab, "works sometimes" is almost never a configuration bug.
-
----
-
-## 8. Environment Notes
-
-### `write memory`, every time
-
-IOL nodes lose unsaved configuration on restart. This lab lost work to it more than once, including a switch that reverted to the default hostname `Switch` and took its entire Port-Channel configuration with it.
-
-### `%CDP-4-DUPLEX_MISMATCH`
-
-IOL images do not apply `duplex full` consistently across virtual interfaces. Connectivity is unaffected. Once both ends are genuinely correct:
-
-```
-no cdp log mismatch duplex
-```
-
-### `Shr` in the `show spanning-tree` Type column
-
-IOS derives STP link type from duplex — full gives `P2p`, half gives `Shr`.
-
-This one is **not** cosmetic. On `Shr`, MST and RSTP fall back to legacy timers: 15 seconds listening plus 15 seconds learning. Convergence stretches past 30 seconds, and a failover that should be instant looks like a total outage.
-
-```
-interface <X>
- spanning-tree link-type point-to-point
-```
-
-Legitimate in a lab — there is no hub on a virtual link.
-
-### VRF-aware commands on a PE
-
-The VRF exists only on provider edge routers. Every command touching customer addresses needs the keyword:
+**Fix.**
 
 ```
 ping vrf Enterprise_VRF 80.80.80.2
-traceroute vrf Enterprise_VRF 80.80.80.2
-show ip route vrf Enterprise_VRF
-show ip bgp vpnv4 vrf Enterprise_VRF
 ```
 
-A plain `ping 80.80.80.2` from a PE consults the **global** table, which has no such route — so a directly connected neighbour appears unreachable while everything is fine.
+**The full set.**
 
-The exception: PE loopbacks are provider infrastructure and live in the global table. Reach those **without** the keyword.
+| Global table | Inside the VRF |
+|---|---|
+| `ping 80.80.80.2` | `ping vrf Enterprise_VRF 80.80.80.2` |
+| `show ip route` | `show ip route vrf Enterprise_VRF` |
+| `show ip bgp` | `show ip bgp vpnv4 vrf Enterprise_VRF` |
+| `traceroute 80.80.80.2` | `traceroute vrf Enterprise_VRF 80.80.80.2` |
 
-CE routers are unaware the VRF exists and use ordinary commands throughout.
+PE **loopbacks** live in the global table — reach those *without* the `vrf` keyword. The same device answers differently depending on which table the question is asked in.
+
+**Lesson.** On a PE, "can I ping it" is an incomplete question. The complete question is "can I ping it *from which table*."
 
 ---
 
-## 9. Open Items
+## Case 8 — The One-Way Link
 
-**Router-ID collision.** PE1 uses OSPF router-ID `10.0.255.1`, which is also DC-Spine-1's loopback. Separate routing tables mean
+The longest chase in the project.
+
+**Symptom.** OSPF between PE1 and `P-Router` would not reach FULL.
+
+- On `P-Router`: neighbour stuck in `INIT`
+- On PE1: `show ip ospf neighbor` completely empty
+
+**What it looked like.** Everything, in order:
+
+- MTU mismatch → checked, identical
+- Network type mismatch (broadcast vs point-to-point) → checked, identical
+- Authentication → none configured either side
+- Area mismatch → same area
+- Subnet mask mismatch → same `/30`
+- `debug ip ospf adj` → showed hellos being *sent* from PE1, and nothing received on either side matching them
+
+Every configuration comparison came back clean. `INIT` on one side and empty on the other is the classic signature of one-way hello reception, but the configuration gave no reason for it.
+
+**What it was.** The virtual link in EVE-NG was passing traffic in one direction only. Nothing on either router was wrong.
+
+**How it was settled.** Interface counters, sampled twice a few seconds apart:
+
+| Device | Counter | First read | Second read |
+|---|---|---|---|
+| P-Router `e0/0` | `packets output` | 1542 | 1548 |
+| PE1 `e0/0` | `packets input` | 26 | 26 |
+
+```
+show interfaces Ethernet0/0 | include packets input|packets output
+```
+
+`P-Router` was transmitting. PE1's input counter was frozen. Frames were leaving one side and never arriving at the other — which no routing protocol configuration can cause.
+
+**Fix.** Delete the cable in the EVE topology and draw it again. The adjacency came up immediately.
+
+**Lesson.** This is the single most transferable item in the log. **Read the counters before reading the configuration.** Two `show interfaces` samples take fifteen seconds and would have replaced an hour of protocol comparison. If one side's `packets output` climbs while the other side's `packets input` does not move, the problem is beneath the protocol entirely — and in a virtual lab, redrawing the link is the fix.
+
+---
+
+## Case 9 — Instability That Was Resource Pressure
+
+**Symptom.** Intermittently across the whole topology:
+
+```
+%OSPF-5-ADJCHG: Process 1, Nbr 10.0.255.2 on Ethernet0/1 from FULL to DOWN,
+Neighbor Down: Dead timer expired
+```
+
+Pings dropping randomly. Traceroute hops showing 800 ms inside a lab where every device is on the same physical host.
+
+**What it looked like.** A routing loop, or link instability.
+
+**What it was.** EVE host CPU starvation. Roughly 20 IOL nodes on a constrained host means hello packets are not generated on time. OSPF interprets a late hello exactly as it interprets a dead neighbour.
+
+**How it was identified.** Two signals together:
+
+- The flaps were **not** correlated with any single link or device — they moved around
+- 800 ms latency between two nodes on the same hypervisor is physically impossible unless the *scheduler*, not the network, is the delay
+
+**Mitigations.**
+
+Power down every node outside the path under test — the most effective single action.
+
+Then relax the timers on links that still flap, on **both** ends:
+
+```
+interface Ethernet0/1
+ ip ospf dead-interval 120
+```
+
+Mismatched timers prevent adjacency entirely, so this must be symmetric.
+
+**Lesson.** In a virtual lab, "the network is unstable" and "the host is overloaded" produce identical symptoms. Latency that is physically impossible for the topology is the tell.
+
+---
+
+## Command Reference
+
+The commands that actually resolved things, grouped by what they answer.
+
+**Is the physical path working?**
+```
+show interfaces Ethernet0/0 | include packets input|packets output
+show cdp neighbors
+show interfaces status
+```
+
+**Is Layer 2 correct?**
+```
+show etherchannel summary
+show interfaces trunk
+show spanning-tree vlan 10
+show spanning-tree interface Ethernet0/2 detail
+show standby brief
+```
+
+**Is the route real, or does it resolve into a hole?**
+```
+show ip route 10.0.100.0
+show ip cef 10.0.100.0
+```
+
+**Is the prefix being advertised?**
+```
+show ip bgp neighbors <peer> advertised-routes
+show ip bgp neighbors <peer> received-routes
+show ip route ospf
+```
+
+**Is the VRF correct?**
+```
+show ip route vrf Enterprise_VRF
+show ip bgp vpnv4 all summary
+show ip bgp vpnv4 vrf Enterprise_VRF
+ping vrf Enterprise_VRF <address>
+```
+
+**Is MPLS working?**
+```
+show mpls ldp neighbor
+show mpls forwarding-table
+```
+
+---
+
+## Summary
+
+| # | Symptom | Suspected | Actual cause |
+|---|---|---|---|
+| 1 | One VLAN unreachable | EtherChannel | Missing from trunk allowed list |
+| 2 | Duplex mismatch logs | Speed/duplex | IOL artefact |
+| 3 | Silent packet loss | Routing protocol | Static resolving through `Null0` |
+| 4 | Partial redistribution | BGP filtering | `redistribute ospf` default `match internal` |
+| 5 | One-way reachability | Provider core | No `network` statements |
+| 6 | No VPN routes | MPLS labels / RT | Peering to an OSPF router-ID |
+| 7 | Ping to neighbour fails | Dead link | Wrong routing table |
+| 8 | OSPF stuck in INIT | Protocol mismatch | One-way virtual link in EVE |
+| 9 | Random flapping | Routing loop | Host CPU starvation |
+
+Nine faults. In seven of them, the layer that produced the symptom was not the layer that contained the fault.
