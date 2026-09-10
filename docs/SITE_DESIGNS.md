@@ -1,45 +1,58 @@
 # Site Designs
 
-Three sites, three different design patterns. This document explains what each site looks like and why it is built that way.
+Three customer sites and a service provider core. This document explains what each is, how it is built, and why.
 
-The short version: design follows scale. A site with 300 users, a site with racks of servers, and a site with twenty people have genuinely different requirements, and copying one pattern to all three would be wrong in two of them.
-
----
-
-## Comparison
-
-| | HQ | DC | Branch 1 |
-|---|---|---|---|
-| Pattern | Collapsed Core | Leaf-Spine (routed access) | Router-on-a-Stick |
-| L3 devices | Two cores | Two spines + two leaves | One router |
-| Inter-layer links | Port-Channel (LACP) | Routed `/30` point-to-point | Single 802.1Q trunk |
-| Traffic distribution | LACP, Layer 2 | **ECMP in OSPF, Layer 3** | None |
-| Loop prevention | MST blocks ports | No loop exists, no STP | No loop exists |
-| Gateway | HSRP virtual IP | Local SVI on the leaf | Router sub-interface |
-| Redundancy | HSRP + Port-Channel + MST | 4-way ECMP | **None** |
-| Justified for | Hundreds of users | East-west server traffic | Twenty users |
+The two enterprise sites share a pattern. The branch uses a deliberately minimal one. The provider core is a different world entirely.
 
 ---
 
-## HQ — Collapsed Core
+## Overview
 
-Distribution and core collapse into a single pair of Layer 3 switches. Access switches connect to both, VLANs stretch between them, and Layer 2 redundancy is managed by STP and a first-hop redundancy protocol.
+| | HQ | DC | Branch 1 | Provider |
+|---|---|---|---|---|
+| Pattern | Collapsed Core | Collapsed Core | Router-on-a-Stick | MPLS L3VPN |
+| L3 devices | Two cores | Two cores | One router | PE1, P, PE-2 |
+| Access uplinks | LACP Port-Channel | LACP Port-Channel | Single trunk | — |
+| Loop prevention | MST | Rapid-PVST | None needed | — |
+| Gateway | HSRP VIP | HSRP VIP | Sub-interface | — |
+| Core peer-link | Yes (`Po1`) | **No** | — | — |
+| Redundancy | HSRP + Po + STP | HSRP + Po + STP | **None** | Single P router |
 
-This is the standard campus pattern, and it is standard because campus networks stretch VLANs. A user in VLAN 10 might sit on either access switch, so VLAN 10 has to exist on both.
+---
+
+## The Collapsed Core Pattern
+
+Both enterprise sites use it, so it is worth stating once.
+
+Distribution and core collapse into a single pair of Layer 3 switches. Access switches connect to both, VLANs stretch between them, and Layer 2 redundancy is handled by STP plus a first-hop redundancy protocol.
+
+It is the standard campus build, and it is standard because campus and server networks stretch VLANs. A host in VLAN 10 may sit on either access switch, so VLAN 10 must exist on both.
 
 ```
-              HQ-Edge-Router
-             /              \
-    HQ-Core-SW1 ==== Po1 ==== HQ-Core-SW2
-       |    \                  /    |
-   Po11|     \Po12      Po21  /     |Po22
-       |      \              /      |
-   HQ-Access-SW1        HQ-Access-SW2
+        Edge Router
+       /            \
+  Core-SW1 ====== Core-SW2      (peer-link, where present)
+     |    \        /    |
+     |     \      /     |       LACP Port-Channels
+     |      \    /      |
+  Access-SW1     Access-SW2
 ```
+
+**Three things make it work:**
+
+**LACP Port-Channels** bundle two physical links into one logical link. A single member failing does not take the path down.
+
+**HSRP** presents a virtual IP as the gateway. When the active core fails, the VIP moves rather than disappearing, and hosts notice nothing.
+
+**Spanning tree** prevents the loops that dual-homing necessarily creates, blocking the redundant path until it is needed.
+
+---
+
+## HQ Site
+
+**AS 65100 · `172.16.0.0/16`**
 
 ### Port-Channels
-
-Each access switch is dual-homed with a two-link LACP bundle to each core. The cores are joined by a peer-link of their own.
 
 | Po | Side A | Ports | Side B | Ports |
 |---|---|---|---|---|
@@ -49,7 +62,7 @@ Each access switch is dual-homed with a two-link LACP bundle to each core. The c
 | `Po21` | HQ-Core-SW2 | e1/0, e1/1 | HQ-Access-SW1 | e0/0, e0/1 |
 | `Po22` | HQ-Core-SW2 | e0/2, e0/3 | HQ-Access-SW2 | e0/2, e0/3 |
 
-All bundles use LACP `mode active`. Trunks are 802.1Q with native VLAN 999 and an explicit allowed list.
+All LACP `mode active`. Trunks are 802.1Q with native VLAN 999 and an explicit allowed list.
 
 ```
 interface range Ethernet0/2 - 3
@@ -61,26 +74,24 @@ interface range Ethernet0/2 - 3
  channel-group 11 mode active
 ```
 
-### First-hop redundancy
+### Spanning tree — MST with load balancing
 
-HSRP runs on all four VLANs. HQ-Core-SW1 is Active with priority 110 and preempt; HQ-Core-SW2 is Standby.
-
-Hosts receive the virtual IP as their gateway, so a core failure is invisible to them — the VIP moves rather than disappearing.
-
-### Spanning tree
-
-MST, with HQ-Core-SW1 as root. Instances are split so both access uplinks carry traffic instead of one sitting idle:
+HQ-Core-SW1 is root. Instances are split so both access uplinks carry traffic instead of one sitting idle:
 
 ```
 Po11 -> VLANs 10, 20, 40 forwarding
 Po21 -> VLAN 30 forwarding
 ```
 
-**STP root and HSRP Active are deliberately on the same switch.** If the root were SW1 while HSRP Active were SW2, every flow would cross the core peer-link on its way out — traffic would zigzag for no reason. Aligning them is a small detail with a large effect, and it is the one most often missed.
+### The alignment that matters
+
+**STP root and HSRP Active both sit on HQ-Core-SW1.** If the root were SW1 while HSRP Active were SW2, every outbound flow would cross the core peer-link on its way out — traffic zigzagging for no reason.
+
+A small detail with a large effect, and the one most often missed.
 
 ### Known limitation
 
-A two-member Port-Channel doubles its STP path cost when one member fails, which can trigger a root-port change and a reconvergence. Where that matters, pin the cost so a partial failure does not move the topology:
+A two-member Port-Channel doubles its STP path cost when one member fails, which can trigger a root-port change and a reconvergence. Where that matters, pin the cost:
 
 ```
 interface Port-channel11
@@ -89,85 +100,67 @@ interface Port-channel11
 
 ---
 
-## DC — Leaf-Spine, Routed Access
+## DC Site
 
-The data centre does not run STP at all. Every leaf-spine link is a routed `/30`, and OSPF distributes traffic across all of them simultaneously.
+**AS 65200 · `10.0.0.0/16`**
 
-```
-                 DC-WAN-RTR
-                /           \
-        DC-Spine-1        DC-Spine-2
-           /    \            /    \
-          /      \          /      \
-    DC-Leaf-1 ------------------ DC-Leaf-2
-        |                            |
-   server VLANs                 server VLANs
+> **Naming note.** Devices are named `DC-Spine-*` and `DC-Leaf-*` for historical reasons. The implemented design is a collapsed core — the cores hold every SVI and the access switches are pure Layer 2.
 
-   Each leaf: 4 uplinks = 4 ECMP paths
-```
+Structurally the same as HQ, with three differences worth documenting.
 
-### Three design rules
-
-**1. Spines do not connect to spines.** Every leaf already reaches every spine, so a spine-to-spine link adds a path that nothing needs and complicates routing.
-
-**2. Leaves do not connect to leaves.** All traffic goes leaf, spine, leaf — always exactly two hops, from any server to any server. That is what makes latency predictable.
-
-**3. A VLAN lives on exactly one leaf.** No Layer 2 stretching, therefore no STP, no large broadcast domains, and no broadcast storm that can cross the fabric.
-
-The result: **every link forwards traffic at once.** Where STP would block half the topology, OSPF spreads load across four equal-cost paths.
-
-### Why it scales
-
-The reason to put spines in the middle only becomes obvious as leaves are added:
-
-| Leaves | Links, full mesh | Links, via spines |
-|---|---|---|
-| 2 | 1 | 4 |
-| 4 | 6 | 8 |
-| 8 | 28 | 16 |
-| 20 | **190** | 40 |
-| 40 | **780** | 80 |
-
-Full mesh grows quadratically. With spines it is linear — each new leaf needs one link per spine, and adding leaf 21 means touching two switches instead of twenty.
-
-### Interface configuration
+### Difference 1 — Rapid-PVST instead of MST
 
 ```
-interface Ethernet0/0
- no switchport
- ip address 10.0.253.2 255.255.255.252
- ip ospf network point-to-point
+spanning-tree mode rapid-pvst
 ```
 
-`no switchport` moves the port out of Layer 2 entirely. `ip ospf network point-to-point` suppresses DR/BDR election, which is meaningless on a two-router link and only slows convergence.
+Rapid-PVST runs one spanning tree instance per VLAN. Simpler to reason about, but it does not scale the way MST does — MST maps many VLANs onto a handful of instances, which matters once VLAN counts grow.
 
-### The trade-off
+With four VLANs the difference is academic. At two hundred it would not be.
 
-What is lost is Layer 2 adjacency between leaves. That matters for classic VM mobility, for clusters whose heartbeat requires a shared broadcast domain, and for broadcast-based discovery.
+### Difference 2 — No core peer-link
 
-Modern data centres solve this with **VXLAN/EVPN** — a Layer 2 overlay on top of the routed underlay, giving both mobility and full link utilisation. That is out of scope here, but the routed underlay built in this lab is exactly the foundation VXLAN runs on.
+HQ has `Po1` joining its two cores directly. The DC does not.
 
-### Separation without stretched VLANs
+The two cores still reach each other, by two indirect routes: through the access switches over the stretched VLANs, and through DC-WAN-RTR over the routed uplinks. HSRP hellos travel the first of those paths.
 
-Tiers are separated by subnet and policed at the routed hop:
+It works. A direct trunk between the cores would be the conventional build, and would give HSRP a dedicated path that does not depend on an access switch staying up.
+
+### Difference 3 — Routed uplinks to the WAN router
+
+| Link | Subnet |
+|---|---|
+| DC-WAN-RTR to DC-Spine-1 | `10.0.254.0/30` |
+| DC-WAN-RTR to DC-Spine-2 | `10.0.254.4/30` |
+
+These are the only routed interfaces inside the DC. Everything below the cores is Layer 2.
+
+### Port-Channels
+
+| Po | Core | Ports | Access Switch | Ports |
+|---|---|---|---|---|
+| `Po1` | DC-Spine-1 | e0/2, e1/0 | DC-Leaf-1 | e0/0, e0/1 |
+| `Po2` | DC-Spine-1 | e1/1, e1/2 | DC-Leaf-2 | e1/0, e1/1 |
+| `Po1` | DC-Spine-2 | e1/1, e1/2 | DC-Leaf-1 | e1/0, e1/1 |
+| `Po2` | DC-Spine-2 | e0/2, e1/0 | DC-Leaf-2 | e0/0, e0/1 |
+
+### HSRP
+
+DC-Spine-1 is Active on all four VLANs, priority 110 with preempt. DC-Spine-2 is Standby.
 
 ```
-ip access-list extended WEB-OUT
- permit tcp 10.0.10.0 0.0.0.255 10.0.30.0 0.0.0.255 eq 3306
- deny   ip  10.0.10.0 0.0.0.255 10.0.30.0 0.0.0.255
- permit ip  any any
-!
-interface Vlan10
- ip access-group WEB-OUT in
+Interface  Grp  Pri P State   Active  Standby     Virtual IP
+Vl10        10  110 P Active  local   10.0.10.3   10.0.10.1
+Vl20        20  110 P Active  local   10.0.20.3   10.0.20.1
+Vl30        30  110 P Active  local   10.0.30.3   10.0.30.1
+Vl40        40  110 P Active  local   10.0.40.3   10.0.40.1
 ```
-
-This is worth stating plainly: **a VLAN was never a separation mechanism.** It provides a broadcast domain, nothing more. Two hosts inside one VLAN talk with no policy applied at all. Routing between tiers creates a checkpoint where policy can actually be enforced — so a routed design gives you *more* control, not less.
-
-For hard multi-tenancy, VRFs give separate routing tables where an ACL mistake cannot leak traffic.
 
 ---
 
-## Branch 1 — Router-on-a-Stick
+## Branch 1
+
+**AS 65300 · `192.168.0.0/16`**
 
 One router, one Layer 2 switch, one trunk between them. Every VLAN gateway is a sub-interface.
 
@@ -191,11 +184,87 @@ The native-VLAN sub-interface carries **no IP address**. It exists to tell the r
 
 All traffic between VLANs — even between two hosts in the same building — travels up to the router and back down the same cable. The link carries each packet twice.
 
-In a twenty-person branch this is irrelevant. In a campus it would be a bottleneck, and that is precisely why HQ is built differently.
+In a twenty-person branch this is irrelevant. In a campus it would be a bottleneck, and that is precisely why HQ and the DC are built differently.
 
 ### No redundancy, on purpose
 
-One router, one link, no FHRP. A small branch does not justify the cost of duplication, and this is a decision made in the field every day. The honest way to document a design is to state what it does not protect against.
+One router, one link, no FHRP. A small branch does not justify the cost of duplication, and this decision is made in the field every day.
+
+There is no routing protocol either. A single default route points at the provider:
+
+```
+ip route 0.0.0.0 0.0.0.0 70.70.70.1
+```
+
+A site with one exit has nothing to gain from a dynamic protocol.
+
+---
+
+## Provider Core
+
+**AS 65000 · OSPF + LDP · VRF `Enterprise_VRF`**
+
+This is the part of the lab that is genuinely a different design domain, and the reason the project covers more ground than a multi-site campus build.
+
+```
+       PE1 -------- P-Router -------- PE-2
+        |                              |
+   HQ + Branch                        DC
+```
+
+### Separation by VRF
+
+All three customer sites live in one VRF:
+
+```
+ip vrf Enterprise_VRF
+ rd 65000:1
+ route-target export 65000:1
+ route-target import 65000:1
+```
+
+The **route distinguisher** makes overlapping customer prefixes unique inside the provider's tables. The **route targets** control which VRF a route lands in on the far side. Neither exists on the customer routers — the VRF is invisible to them.
+
+### MP-BGP VPNv4
+
+PE routers exchange customer routes over a single iBGP session between loopbacks:
+
+```
+address-family vpnv4
+ neighbor 192.51.100.2 activate
+ neighbor 192.51.100.2 send-community both
+ neighbor 192.51.100.2 next-hop-self
+```
+
+`send-community both` is what carries the route targets. Without it the session establishes, prefixes cross, and the far PE discards every one of them because it cannot tell which VRF they belong to.
+
+### Three PE-CE arrangements, one lab
+
+This is the interesting part:
+
+| Site | Protocol | Why |
+|---|---|---|
+| HQ | eBGP, AS 65100 | Many subnets, redistributes from OSPF |
+| DC | eBGP, AS 65200 | Summarises with `aggregate-address` |
+| Branch | Static routes | One exit, nothing to compute |
+
+All three coexist in the same VRF. A real provider offers exactly this menu, and customers pick per site according to what they can maintain.
+
+### Per-site ASNs
+
+Using one customer ASN everywhere would mean each site rejecting routes that carry its own ASN in the AS-path, and the PEs would need `as-override` to rewrite it. Distinct ASNs sidestep that.
+
+Both patterns appear in the field. Per-site is simpler; one shared ASN with `as-override` is more common in large deployments where managing a table of ASNs is its own burden.
+
+---
+
+## Overlay — GRE over IPsec
+
+Tunnel0 connects HQ-Edge-Router and DC-WAN-RTR directly, riding on the MPLS transport, with eBGP running across it.
+
+**It is the primary path between HQ and the DC, not a backup.** The MPLS core provides only the underlay reachability it needs.
+
+Branch 1 has no tunnel and depends entirely on the L3VPN — which is how a long-standing failure in the provider core was eventually discovered. See [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
 ---
 
@@ -203,21 +272,21 @@ One router, one link, no FHRP. A small branch does not justify the cost of dupli
 
 | Failure | HQ | DC | Branch |
 |---|---|---|---|
-| Single link | Port-Channel absorbs it | ECMP absorbs it | — |
-| Distribution / spine device | HSRP + MST | ECMP | — |
-| Access switch / leaf | Not covered | Not covered | Not covered |
+| Single link | Port-Channel absorbs it | Port-Channel absorbs it | — |
+| Core switch | HSRP + STP | HSRP + STP | — |
+| Access switch | Not covered | Not covered | Not covered |
 | WAN | Tunnel + MPLS | Tunnel + MPLS | Not covered |
 
-Both HQ and the DC survive a core-layer failure. Neither survives the loss of the edge switch a host is plugged into, because each host has a single connection. Covering that requires dual-homed hosts plus MLAG or VXLAN/EVPN — hardware capability this lab does not have, and a cost real deployments frequently decline.
+Both enterprise sites survive a core failure. Neither survives the loss of the access switch a host is plugged into, because each host has a single connection. Covering that requires dual-homed hosts plus MLAG — hardware capability this lab does not have, and a cost real deployments frequently decline.
 
 ---
 
-## Why Not One Pattern Everywhere
+## Why the Branch Is Different
 
-Applying the HQ design to the branch would mean four switches and an FHRP for twenty users — expense and complexity with no return.
+Applying the collapsed core design to the branch would mean four switches and an FHRP for twenty users — expense and complexity with no return.
 
 Applying the branch design to HQ would put every flow through one router on one cable.
 
-Applying the HQ design to the DC would leave half the links blocked by STP, in the one place where east-west bandwidth matters most.
+The two enterprise sites share a pattern because they share a problem: many hosts, stretched VLANs, and no tolerance for a single device failure. The branch has none of those, and is built accordingly.
 
-**Each pattern is correct for its site and wrong for the other two.** That is the point of the lab.
+**Design follows scale.** That is the whole point.
