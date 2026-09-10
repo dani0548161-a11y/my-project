@@ -19,7 +19,7 @@ Three customer sites connected over a simulated MPLS L3VPN provider core, plus a
 | `192.51.100.0/24` | Provider | PE and P router loopbacks |
 | `10.255.255.0/30` | Overlay | GRE/IPsec tunnel, HQ to DC |
 
-VLAN IDs are reused across sites (10 = Users, 20 = Voice, 30 = Mgmt) for operational consistency. Subnets are unique per site.
+VLAN IDs are reused across sites (10 = Users, 20 = Voice, 30 = Mgmt, 40 = Servers) for operational consistency. Subnets are unique per site.
 
 ---
 
@@ -42,6 +42,8 @@ Per-site ASNs avoid the AS-path loop-prevention problem that would otherwise req
 
 **AS 65100 · `172.16.0.0/16` · OSPF process 100, area 0**
 
+Collapsed core. Two Layer 3 switches hold every SVI and act as the gateway for all VLANs. Two access switches connect to both cores over LACP Port-Channels and operate purely at Layer 2.
+
 ### VLANs
 
 | VLAN | Name | Subnet | Gateway (HSRP VIP) | HQ-Core-SW1 | HQ-Core-SW2 |
@@ -50,6 +52,18 @@ Per-site ASNs avoid the AS-path loop-prevention problem that would otherwise req
 | 20 | Voice | `172.16.20.0/24` | `172.16.20.1` | `.2` | `.3` |
 | 30 | Mgmt | `172.16.30.0/24` | `172.16.30.1` | `.2` | `.3` |
 | 40 | Servers | `172.16.40.0/24` | `172.16.40.1` | `.2` | `.3` |
+
+### Port-Channels (LACP)
+
+| Po | Side A | Ports | Side B | Ports |
+|---|---|---|---|---|
+| `Po1` | HQ-Core-SW1 | e0/1, e1/2 | HQ-Core-SW2 | e0/1, e1/2 |
+| `Po11` | HQ-Core-SW1 | e0/2, e0/3 | HQ-Access-SW1 | e0/2, e0/3 |
+| `Po12` | HQ-Core-SW1 | e1/0, e1/1 | HQ-Access-SW2 | e1/0, e1/1 |
+| `Po21` | HQ-Core-SW2 | e1/0, e1/1 | HQ-Access-SW1 | e0/0, e0/1 |
+| `Po22` | HQ-Core-SW2 | e0/2, e0/3 | HQ-Access-SW2 | e0/2, e0/3 |
+
+All trunks: 802.1Q, native VLAN 999, allowed VLANs 10,20,30,40.
 
 ### Routed Links
 
@@ -65,6 +79,19 @@ Per-site ASNs avoid the AS-path loop-prevention problem that would otherwise req
 | HQ-Edge-Router | `172.16.255.1` |
 | HQ-Core-SW1 | `172.16.255.2` |
 | HQ-Core-SW2 | `172.16.255.3` |
+
+### First-Hop Redundancy and Layer 2
+
+**HSRP** — HQ-Core-SW1 is Active on all four VLANs (priority 110, preempt). HQ-Core-SW2 is Standby.
+
+**MST** — HQ-Core-SW1 is root. Instances are load-balanced so both access uplinks carry traffic:
+
+```
+Po11 -> VLANs 10, 20, 40 forwarding
+Po21 -> VLAN 30 forwarding
+```
+
+STP root and HSRP Active are aligned on the same switch so traffic does not hairpin across the core peer-link.
 
 ### Routing
 
@@ -86,17 +113,11 @@ The `match internal external 1 external 2` clause is required. The cores inject 
 
 **AS 65200 · `10.0.0.0/16` · OSPF process 1, area 0**
 
-Collapsed core. Two Layer 3 switches hold every SVI and act as the gateway
-for all server VLANs. Two access switches connect to both cores over LACP
-Port-Channels and operate purely at Layer 2.
-
-> **Naming note.** The devices are named `DC-Spine-*` and `DC-Leaf-*` for
-> historical reasons. The implemented design is a collapsed core, not a
-> routed leaf-spine fabric.
+Collapsed core. Two Layer 3 switches hold every SVI and act as the gateway for all server VLANs. Two access switches connect to both cores over LACP Port-Channels and operate purely at Layer 2.
 
 ### VLANs
 
-| VLAN | Subnet | Gateway (HSRP VIP) | DC-Spine-1 | DC-Spine-2 |
+| VLAN | Subnet | Gateway (HSRP VIP) | DC-Core-SW1 | DC-Core-SW2 |
 |---|---|---|---|---|
 | 10 | `10.0.10.0/24` | `10.0.10.1` | `.2` | `.3` |
 | 20 | `10.0.20.0/24` | `10.0.20.1` | `.2` | `.3` |
@@ -107,10 +128,10 @@ Port-Channels and operate purely at Layer 2.
 
 | Po | Core | Ports | Access Switch | Ports |
 |---|---|---|---|---|
-| `Po1` | DC-Spine-1 | e0/2, e1/0 | DC-Leaf-1 | e0/0, e0/1 |
-| `Po2` | DC-Spine-1 | e1/1, e1/2 | DC-Leaf-2 | e1/0, e1/1 |
-| `Po1` | DC-Spine-2 | e1/1, e1/2 | DC-Leaf-1 | e1/0, e1/1 |
-| `Po2` | DC-Spine-2 | e0/2, e1/0 | DC-Leaf-2 | e0/0, e0/1 |
+| `Po1` | DC-Core-SW1 | e0/2, e1/0 | DC-Access-SW1 | e0/0, e0/1 |
+| `Po2` | DC-Core-SW1 | e1/1, e1/2 | DC-Access-SW2 | e1/0, e1/1 |
+| `Po1` | DC-Core-SW2 | e1/1, e1/2 | DC-Access-SW1 | e1/0, e1/1 |
+| `Po2` | DC-Core-SW2 | e0/2, e1/0 | DC-Access-SW2 | e0/0, e0/1 |
 
 All bundles are 802.1Q trunks carrying VLANs 10, 20, 30 and 40.
 
@@ -118,86 +139,42 @@ All bundles are 802.1Q trunks carrying VLANs 10, 20, 30 and 40.
 
 | Link | Subnet | DC-WAN-RTR | Core |
 |---|---|---|---|
-| WAN-RTR to DC-Spine-1 | `10.0.254.0/30` | `.1` (e0/1) | `.2` (e0/0) |
-| WAN-RTR to DC-Spine-2 | `10.0.254.4/30` | `.5` (e0/2) | `.6` (e0/0) |
+| WAN-RTR to DC-Core-SW1 | `10.0.254.0/30` | `.1` (e0/1) | `.2` (e0/0) |
+| WAN-RTR to DC-Core-SW2 | `10.0.254.4/30` | `.5` (e0/2) | `.6` (e0/0) |
 
-These are the only routed interfaces inside the DC. Everything below the
-cores is Layer 2.
+These are the only routed interfaces inside the DC. Everything below the cores is Layer 2.
 
 ### Loopbacks
 
 | Device | Address |
 |---|---|
-| DC-Spine-1 | `10.0.255.1` |
-| DC-Spine-2 | `10.0.255.2` |
+| DC-Core-SW1 | `10.0.255.1` |
+| DC-Core-SW2 | `10.0.255.2` |
 | DC-WAN-RTR | `10.0.255.8` |
 
-The access switches also carry loopbacks (`10.0.255.11`, `10.0.255.12`).
-These are vestigial and serve no function in a Layer 2 device.
+The access switches also carry loopbacks (`10.0.255.11`, `10.0.255.12`). These are vestigial and serve no function in a Layer 2 device.
 
 ### First-Hop Redundancy and Layer 2
 
-**HSRP** — DC-Spine-1 is Active on all four VLANs (priority 110, preempt).
-DC-Spine-2 is Standby.
+**HSRP** — DC-Core-SW1 is Active on all four VLANs (priority 110, preempt). DC-Core-SW2 is Standby.
 
-**Spanning tree** — Rapid-PVST. Each access switch is dual-homed, so STP
-blocks one uplink per VLAN.
+```
+Interface  Grp  Pri P State   Active  Standby     Virtual IP
+Vl10        10  110 P Active  local   10.0.10.3   10.0.10.1
+Vl20        20  110 P Active  local   10.0.20.3   10.0.20.1
+Vl30        30  110 P Active  local   10.0.30.3   10.0.30.1
+Vl40        40  110 P Active  local   10.0.40.3   10.0.40.1
+```
 
-**No core peer-link.** Unlike HQ, the two cores are not directly connected.
-They reach each other through the access switches and through DC-WAN-RTR.
-This works, but a direct trunk between them would be the conventional build.
+**Spanning tree** — Rapid-PVST. Each access switch is dual-homed, so STP blocks one uplink per VLAN.
+
+**No core peer-link.** Unlike HQ, the two cores are not directly connected. They reach each other through the access switches over the stretched VLANs, and through DC-WAN-RTR over the routed uplinks. This works, but a direct trunk between them would be the conventional build.
 
 ### Routing
 
-OSPF process 1, area 0, between the two cores and DC-WAN-RTR over the
-`10.0.254.x` links. The cores redistribute their connected VLAN subnets
-into OSPF.
+OSPF process 1, area 0, between the two cores and DC-WAN-RTR over the `10.0.254.x` links. The cores redistribute their connected VLAN subnets into OSPF.
 
 DC-WAN-RTR injects a default route into the site:
-
-```
-router ospf 1
- default-information originate
-```
-
-And summarises the entire site outward, advertising only the `/16` supernet:
-
-```
-router bgp 65200
- address-family ipv4
-  network 10.0.0.0 mask 255.255.0.0
-  aggregate-address 10.0.0.0 255.255.0.0 summary-only
-  redistribute ospf 1
-```
-
-A discard route anchors the aggregate and catches unrouted `10.0.x.x`:
-
-```
-ip route 10.0.0.0 255.255.0.0 Null0 250
-```
-
-New subnets added inside the DC are covered automatically by the `/16` and
-require no changes at any other site.
-### WAN Uplinks
-
-| Link | Subnet | DC-WAN-RTR | Spine |
-|---|---|---|---|
-| WAN-RTR to DC-Spine-1 | `10.0.254.0/30` | `.1` (e0/1) | `.2` (e0/0) |
-| WAN-RTR to DC-Spine-2 | `10.0.254.4/30` | `.5` (e0/2) | `.6` (e0/0) |
-
-### Router IDs
-
-| Device | OSPF Router-ID |
-|---|---|
-| DC-Spine-1 | `10.0.255.1` |
-| DC-Spine-2 | `10.0.255.2` |
-| DC-Leaf-1 | `10.0.255.11` |
-| DC-Leaf-2 | `10.0.255.12` |
-| DC-WAN-RTR | `10.0.255.8` |
-
-### Routing
-
-DC-WAN-RTR injects a default route into the fabric:
 
 ```
 router ospf 1
@@ -370,10 +347,24 @@ This overlay is the primary path between HQ and DC, not a backup. The MPLS core 
 | Scope | Protocol | Details |
 |---|---|---|
 | HQ internal | OSPF 100, area 0 | Cores to HQ-Edge-Router |
-| DC fabric | OSPF 1, area 0 | `ip ospf network point-to-point`, 4-way ECMP |
+| DC internal | OSPF 1, area 0 | Cores to DC-WAN-RTR over `10.0.254.x` |
 | Provider core | OSPF + LDP | PE1 to P-Router to PE-2, loopback reachability |
 | HQ to PE1 | eBGP 65100 to 65000 | `redistribute ospf 100 match internal external 1 external 2` |
 | DC to PE-2 | eBGP 65200 to 65000 | `redistribute ospf 1` + `aggregate-address summary-only` |
 | Branch to PE1 | Static | Default out, statics inbound |
 | PE1 to PE-2 | MP-BGP VPNv4 | Loopback peering, RT 65000:1 |
 | HQ to DC | eBGP over GRE/IPsec | 65100 to 65200 on Tunnel0 |
+
+---
+
+## 9. Site Comparison
+
+| | HQ | DC | Branch 1 |
+|---|---|---|---|
+| Pattern | Collapsed Core | Collapsed Core | Router-on-a-Stick |
+| L3 devices | Two cores | Two cores | One router |
+| Access uplinks | LACP Port-Channel | LACP Port-Channel | Single trunk |
+| Loop prevention | MST | Rapid-PVST | None needed |
+| Gateway | HSRP VIP | HSRP VIP | Sub-interface |
+| Core peer-link | Yes (`Po1`) | No | — |
+| Redundancy | HSRP + Po + STP | HSRP + Po + STP | None |
