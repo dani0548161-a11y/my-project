@@ -1,6 +1,6 @@
 # Enterprise Network Lab — EVE-NG
 
-A three-site enterprise WAN built end to end in EVE-NG: two campus sites behind redundant Layer 3 switching, a small branch office, and a simulated service-provider core carrying all three inside an MPLS L3VPN.
+A three-site enterprise WAN built end to end in EVE-NG: a campus headquarters and a data centre, each behind a redundant Layer 3 switch pair, a small branch office, and a simulated service-provider core carrying all three inside an MPLS L3VPN.
 
 Everything in this repository was configured, broken, diagnosed and verified by hand. The documentation reflects the network as it actually runs, not as it was originally planned.
 
@@ -10,10 +10,10 @@ Everything in this repository was configured, broken, diagnosed and verified by 
 
 ## Sites
 
-| Site | Topology | Switching | WAN | Redundancy |
+| Site | Layout | Switching | WAN | Redundancy |
 |---|---|---|---|---|
 | **HQ** | Collapsed Core | MST + HSRP | eBGP — AS 65100 | Full: dual core, dual uplinks |
-| **DC** | Collapsed Core | Rapid-PVST + HSRP | eBGP — AS 65200 | Switching only, single WAN router |
+| **DC** | Spine/Leaf pair, L2 access | Rapid-PVST + HSRP | eBGP — AS 65200 | Switching only, single WAN router |
 | **Branch 1** | Router-on-a-Stick | Single L2 switch | Static default | None |
 
 Three different levels of redundancy, on purpose. Each site gets the design its scale justifies.
@@ -48,7 +48,7 @@ README.md
 │
 ├── configs/
 │   ├── hq/                          Edge router, core pair, access pair
-│   ├── dc/                          WAN router, core pair, access pair
+│   ├── dc/                          WAN router, DC-Spine-1/2, DC-Leaf-1/2
 │   ├── branch/                      BR1-Router, BR1-SW1
 │   └── provider/                    PE1, P-Router, PE-2
 │
@@ -63,7 +63,7 @@ README.md
 
 **[docs/ADDRESSING_AND_ROUTING.md](docs/ADDRESSING_AND_ROUTING.md)** — the complete address plan. Which block belongs to which site, every VLAN and subnet, all router-IDs and loopbacks, the ASN allocation and why each site has its own, and every redistribution point with the reason it is configured the way it is.
 
-**[docs/SITE_DESIGNS.md](docs/SITE_DESIGNS.md)** — the design decisions. Why access switches stay Layer 2, why STP root and HSRP Active sit on the same switch, why the DC runs Rapid-PVST where HQ runs MST, why the branch runs no routing protocol at all, and what each site loses when a device fails.
+**[docs/SITE_DESIGNS.md](docs/SITE_DESIGNS.md)** — the design decisions. Why the access layer stays Layer 2, why STP root and HSRP Active sit on the same switch, why the DC runs Rapid-PVST where HQ runs MST, why the branch runs no routing protocol at all, and what each site loses when a device fails.
 
 **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** — nine faults that actually occurred, each with the symptom, the wrong hypothesis, the real cause, and the command that settled it. In seven of the nine, the layer that produced the symptom was not the layer that contained the fault.
 
@@ -92,8 +92,8 @@ The state the lab is expected to be in when healthy:
 
 ```
 show etherchannel summary            every Po (SU), every member (P)
-show standby brief                   Core-SW1 Active, Core-SW2 Standby, all VLANs
-show spanning-tree vlan 10           root on Core-SW1
+show standby brief                   SW1 Active, SW2 Standby on every VLAN
+show spanning-tree vlan 10           root on the HSRP Active switch
 show ip ospf neighbor                all FULL
 show mpls ldp neighbor               State: Oper
 show ip bgp vpnv4 all summary        PE peering Up with a non-zero prefix count
@@ -124,6 +124,6 @@ ping 192.168.10.1       Branch gateway
 ## Known Limitations
 
 - **Single-homed WAN at the DC.** `DC-WAN-RTR` is a single point of failure for everything leaving the site.
-- **No direct core peer-link in the DC.** The two DC core switches are not directly cabled; their HSRP hellos traverse the access layer. Adding a core-to-core Port-Channel is the first improvement to make.
+- **No peer-link between the DC Spines.** `DC-Spine-1` and `DC-Spine-2` are not directly cabled; their HSRP hellos traverse the Leaf layer. Adding a direct Port-Channel between them is the first improvement to make.
 - **No Internet edge.** This is a private WAN only — NAT, DMZ and Internet breakout are out of scope.
 - **No tunnel failure detection.** The eBGP session over Tunnel0 gives partial protection, but a silent IPsec failure with the TCP session intact would black-hole traffic. IP SLA + object tracking is the fix and is documented, not deployed.
